@@ -1,0 +1,4 @@
+loadfile _build/nrf51422_xxac_s110.hex
+r
+g
+exit
