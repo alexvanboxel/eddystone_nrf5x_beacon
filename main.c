@@ -23,6 +23,11 @@
 
 #define VBAT_MAX_IN_MV                  3300
 
+#define EDDYSTONE_UID                   0
+#define EDDYSTONE_URL                   1
+#define EDDYSTONE_TLM                   2
+
+
 
 #if defined(USE_UICR_FOR_MAJ_MIN_VALUES)
 #define MAJ_VAL_OFFSET_IN_BEACON_INFO   18                                /**< Position of the MSB of the Major Value in m_beacon_info array. */
@@ -30,14 +35,7 @@
 #endif
 
 
-uint8_t estn_adv_frame_uid[BLE_GAP_ADV_MAX_SIZE];
-uint8_t estn_adv_frame_url[BLE_GAP_ADV_MAX_SIZE];
-uint8_t estn_adv_frame_tlm[BLE_GAP_ADV_MAX_SIZE];
-
-uint8_t estn_adv_len_uid;
-uint8_t estn_adv_len_url;
-uint8_t estn_adv_len_tlm;
-
+static edstn_frame_t edstn_frames[3];
 
 static uint32_t pdu_count = 0;
 
@@ -61,8 +59,8 @@ void assert_nrf_callback(uint16_t line_num, const uint8_t *p_file_name) {
 
 
 void init_url_frame_buffer() {
-    uint8_t *encoded_advdata = estn_adv_frame_url;
-    uint8_t *len_advdata = &estn_adv_len_url;
+    uint8_t *encoded_advdata = edstn_frames[EDDYSTONE_URL].adv_frame;
+    uint8_t *len_advdata = &edstn_frames[EDDYSTONE_URL].adv_len;
 
     eddystone_head_encode(encoded_advdata, 0x10, len_advdata);
 
@@ -89,8 +87,8 @@ void init_url_frame_buffer() {
 }
 
 void init_uid_frame_buffer() {
-    uint8_t *encoded_advdata = estn_adv_frame_uid;
-    uint8_t *len_advdata = &estn_adv_len_uid;
+    uint8_t *encoded_advdata = edstn_frames[EDDYSTONE_UID].adv_frame;
+    uint8_t *len_advdata = &edstn_frames[EDDYSTONE_UID].adv_len;
 
     eddystone_head_encode(encoded_advdata, 0x00, len_advdata);
 
@@ -118,12 +116,9 @@ void init_uid_frame_buffer() {
 }
 
 
-uint32_t eddystone_set_adv_data(uint8_t *encoded_advdata, uint8_t len_advdata) {
-    uint8_t *p_encoded_advdata;
-    p_encoded_advdata = encoded_advdata;
-
-    // Pass encoded advertising data and/or scan response data to the stack.
-    return sd_ble_gap_adv_data_set(p_encoded_advdata, len_advdata, NULL, 0);
+uint32_t eddystone_set_adv_data(uint32_t frame_index) {
+    uint8_t *p_encoded_advdata = edstn_frames[frame_index].adv_frame;
+    return sd_ble_gap_adv_data_set(p_encoded_advdata, edstn_frames[frame_index].adv_len, NULL, 0);
 }
 
 uint32_t big32cpy(uint8_t *dest, uint32_t val) {
@@ -180,8 +175,8 @@ uint8_t battery_level_get(void) {
 }
 
 void init_tlm_frame_buffer() {
-    uint8_t *encoded_advdata = estn_adv_frame_tlm;
-    uint8_t *len_advdata = &estn_adv_len_tlm;
+    uint8_t *encoded_advdata = edstn_frames[EDDYSTONE_TLM].adv_frame;
+    uint8_t *len_advdata = &edstn_frames[EDDYSTONE_TLM].adv_len;
 
     eddystone_head_encode(encoded_advdata, 0x20, len_advdata);
     encoded_advdata[(*len_advdata)++] = 0x00; // Version
@@ -197,7 +192,7 @@ void init_tlm_frame_buffer() {
     eddystone_uint32(encoded_advdata, len_advdata, pdu_count);
 
     // Time since power-on or reboot
-    *len_advdata += big32cpy(encoded_advdata+*len_advdata,pdu_count);
+    *len_advdata += big32cpy(encoded_advdata + *len_advdata, pdu_count);
 
     encoded_advdata[0x07] = (*len_advdata) - 8; // Length	Service Data. Ibid. § 1.11
 }
@@ -211,7 +206,8 @@ void init_tlm_frame_buffer() {
 static void advertising_init(void) {
     init_uid_frame_buffer();
     init_url_frame_buffer();
-    eddystone_set_adv_data(estn_adv_frame_uid, estn_adv_len_uid);
+    init_tlm_frame_buffer();
+    eddystone_set_adv_data(EDDYSTONE_UID);
 
     // Initialize advertising parameters (used when starting advertising).
     memset(&m_adv_params, 0, sizeof(m_adv_params));
@@ -268,16 +264,15 @@ static void power_manage(void) {
 // uid uid uri  uid uid uri
 void eddystone_interleave(bool radio_active) {
     if (radio_active) {
-//        if (pdu_count % 1 == 0) {
-        if (0 == 0) {
+        if (pdu_count % 1 == 10) {
             init_tlm_frame_buffer();
-            eddystone_set_adv_data(estn_adv_frame_tlm, estn_adv_len_tlm);
+            eddystone_set_adv_data(EDDYSTONE_TLM);
         }
         else if (pdu_count % 3 == 0) {
-            eddystone_set_adv_data(estn_adv_frame_url, estn_adv_len_url);
+            eddystone_set_adv_data(EDDYSTONE_URL);
         }
         else {
-            eddystone_set_adv_data(estn_adv_frame_uid, estn_adv_len_uid);
+            eddystone_set_adv_data(EDDYSTONE_UID);
         }
         pdu_count++;
     }
