@@ -32,11 +32,11 @@
 
 uint8_t estn_adv_frame_uid[BLE_GAP_ADV_MAX_SIZE];
 uint8_t estn_adv_frame_url[BLE_GAP_ADV_MAX_SIZE];
-uint8_t estn_adv_frame_tml[BLE_GAP_ADV_MAX_SIZE];
+uint8_t estn_adv_frame_tlm[BLE_GAP_ADV_MAX_SIZE];
 
 uint8_t estn_adv_len_uid;
 uint8_t estn_adv_len_url;
-uint8_t estn_adv_len_tml;
+uint8_t estn_adv_len_tlm;
 
 
 static uint32_t pdu_count = 0;
@@ -88,7 +88,7 @@ void init_url_frame_buffer() {
     encoded_advdata[0x07] = (*len_advdata) - 8; // Length	Service Data. Ibid. § 1.11
 }
 
-uint32_t init_uid_frame_buffer() {
+void init_uid_frame_buffer() {
     uint8_t *encoded_advdata = estn_adv_frame_uid;
     uint8_t *len_advdata = &estn_adv_len_uid;
 
@@ -115,7 +115,6 @@ uint32_t init_uid_frame_buffer() {
     encoded_advdata[(*len_advdata)++] = 0x06;
 
     encoded_advdata[0x07] = (*len_advdata) - 8; // Length	Service Data. Ibid. § 1.11
-    return 0;
 }
 
 
@@ -180,40 +179,27 @@ uint8_t battery_level_get(void) {
     return (uint8_t) ((vbat_current_in_mv * 100) / VBAT_MAX_IN_MV);
 }
 
-uint32_t eddystone_TML() {
+void init_tlm_frame_buffer() {
+    uint8_t *encoded_advdata = estn_adv_frame_tlm;
+    uint8_t *len_advdata = &estn_adv_len_tlm;
+
+    eddystone_head_encode(encoded_advdata, 0x20, len_advdata);
+    encoded_advdata[(*len_advdata)++] = 0x00; // Version
 
 //    uint8_t battery_data = battery_level_get();
-    uint16_t temperature_data = temperature_data_get();
-
-    //uint32_t  err_code;
-    uint8_t len_advdata = 0;
-    uint8_t encoded_advdata[BLE_GAP_ADV_MAX_SIZE];
-
-    eddystone_head_encode(encoded_advdata, 0x20, &len_advdata);
-
-    encoded_advdata[len_advdata++] = 0x20; // Version
-
-    encoded_advdata[len_advdata++] = 0xFF; // Battery voltage, 1 mV/bit
-    encoded_advdata[len_advdata++] = 0xFF;
+    encoded_advdata[(*len_advdata)++] = 0x00; // Battery voltage, 1 mV/bit
+    encoded_advdata[(*len_advdata)++] = 0x00;
 
     // Beacon temperature
-    len_advdata += big16cpy(encoded_advdata + len_advdata, temperature_data);
+    eddystone_uint16(encoded_advdata, len_advdata, temperature_data_get());
 
     // Advertising PDU count
-    len_advdata += big32cpy(encoded_advdata + len_advdata, pdu_count);
+    eddystone_uint32(encoded_advdata, len_advdata, pdu_count);
 
     // Time since power-on or reboot
-//    len_advdata += big32cpy(encoded_advdata + len_advdata, battery_data);
-    encoded_advdata[len_advdata++] = 0xAA; // Time since power-on or reboot
-    encoded_advdata[len_advdata++] = 0xAA;
-    encoded_advdata[len_advdata++] = 0xAA;
-    encoded_advdata[len_advdata++] = 0xAA;
+    *len_advdata += big32cpy(encoded_advdata+*len_advdata,pdu_count);
 
-    encoded_advdata[0x07] = len_advdata - 8; // Length	Service Data. Ibid. § 1.11
-
-    // Pass encoded advertising data and/or scan response data to the stack.
-    uint8_t *p_encoded_advdata = encoded_advdata;
-    return sd_ble_gap_adv_data_set(p_encoded_advdata, len_advdata, NULL, 0);
+    encoded_advdata[0x07] = (*len_advdata) - 8; // Length	Service Data. Ibid. § 1.11
 }
 
 
@@ -282,8 +268,10 @@ static void power_manage(void) {
 // uid uid uri  uid uid uri
 void eddystone_interleave(bool radio_active) {
     if (radio_active) {
-        if (pdu_count % 50 == 0) {
-            eddystone_TML();
+//        if (pdu_count % 1 == 0) {
+        if (0 == 0) {
+            init_tlm_frame_buffer();
+            eddystone_set_adv_data(estn_adv_frame_tlm, estn_adv_len_tlm);
         }
         else if (pdu_count % 3 == 0) {
             eddystone_set_adv_data(estn_adv_frame_url, estn_adv_len_url);

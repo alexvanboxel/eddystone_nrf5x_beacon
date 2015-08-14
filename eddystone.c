@@ -32,3 +32,30 @@ uint32_t eddystone_head_encode(uint8_t *p_encoded_data,
     return NRF_SUCCESS;
 }
 
+uint32_t eddystone_uint32(uint8_t *p_encoded_data,
+                          uint8_t *p_len,
+                          uint32_t val) {
+    if ((*p_len) + 4 > BLE_GAP_ADV_MAX_SIZE) {
+        return NRF_ERROR_DATA_SIZE;
+    }
+
+    p_encoded_data[(*p_len)++] = (uint8_t) (val >> 24u);
+    p_encoded_data[(*p_len)++] = (uint8_t) (val >> 16u);
+    p_encoded_data[(*p_len)++] = (uint8_t) (val >> 8u);
+    p_encoded_data[(*p_len)++] = (uint8_t) (val >> 0u);
+
+    return NRF_SUCCESS;
+}
+
+uint32_t eddystone_uint16(uint8_t *p_encoded_data,
+                          uint8_t *p_len,
+                          uint16_t val) {
+    if ((*p_len) + 2 > BLE_GAP_ADV_MAX_SIZE) {
+        return NRF_ERROR_DATA_SIZE;
+    }
+
+    p_encoded_data[(*p_len)++] = (uint8_t) (val >> 8u);
+    p_encoded_data[(*p_len)++] = (uint8_t) (val >> 0u);
+
+    return NRF_SUCCESS;
+}
